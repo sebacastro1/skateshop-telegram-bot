@@ -11,6 +11,7 @@ from flask import Flask, request
 from telegram import Bot
 from telegram.error import TelegramError
 import logging
+import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -134,10 +135,11 @@ def handle_webhook():
         # Send to Telegram
         if telegram_bot and TELEGRAM_CHAT_ID:
             try:
-                telegram_bot.send_message(
+                asyncio.run(telegram_bot.send_message(
                     chat_id=TELEGRAM_CHAT_ID,
                     text=message,
                     parse_mode='HTML'
+                    )
                 )
                 logger.info(f"Order notification sent for order #{order_data.get('order_number')}")
                 return {'status': 'success', 'message': 'Notification sent'}, 200
