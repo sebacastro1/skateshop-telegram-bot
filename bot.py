@@ -97,6 +97,7 @@ def format_order_message(order_data):
     customer_name = customer.get('first_name', '') + ' ' + customer.get('last_name', '')
     customer_email = customer.get('email', 'N/A')
     customer_phone = customer.get('phone', 'N/A')
+    customer_rut = customer.get('default_address', {}).get('company', 'N/A') if customer.get('default_address') else 'N/A'
 
     # Productos
     line_items = order_data.get('line_items', [])
@@ -134,6 +135,7 @@ def format_order_message(order_data):
     message = f"""🛹 NUEVO PEDIDO #{order_number}
 
 👤 Cliente: {customer_name.strip()}
+🆔 RUT: {customer_rut}
 📧 {customer_email}
 📞 {customer_phone if customer_phone != 'None' else 'N/A'}
 
