@@ -102,17 +102,21 @@ def format_order_message(order_data):
     # Productos
     line_items = order_data.get('line_items', [])
     products_text = ""
-    product_links = ""
+    has_multiple_units = False
+
     for item in line_items:
         title = item.get('title', 'Producto desconocido')
         quantity = item.get('quantity', 0)
         price = float(item.get('price', 0))
-        products_text += f"  • {title} x{quantity} - ${int(price):,}\n"
+        sku = item.get('sku', 'N/A')
+        products_text += f"  • {title} (SKU: {sku}) x{quantity} - ${int(price):,}\n\n"
 
-        # Obtener el handle del producto para el link
-        product_handle = item.get('variant_id', '')
-        if product_handle:
-            product_links += f"  🔗 https://legit-skateshop.myshopify.com/products/{title.lower().replace(' ', '-')}\n"
+        # Verificar si hay múltiples unidades
+        if quantity > 1:
+            has_multiple_units = True
+
+    # Agregar alerta si hay múltiples unidades
+    alert_text = "⚠️ OJO: Hay productos con múltiples unidades\n\n" if has_multiple_units else ""
 
     # Direccion de envio
     shipping_address = order_data.get('shipping_address', {})
@@ -139,10 +143,8 @@ def format_order_message(order_data):
 📧 {customer_email}
 📞 {customer_phone if customer_phone != 'None' else 'N/A'}
 
-📦 PRODUCTOS:
+{alert_text}📦 PRODUCTOS:
 {products_text}
-🔗 LINKS PARA VER IMÁGENES:
-{product_links}
 📍 DIRECCION DE ENVIO:
 {address_text}
 
