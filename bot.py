@@ -1,48 +1,52 @@
 """
-Telegram Bot for Shopify Order Notifications
-Sends order details to Telegram when new orders are created on Shopify
+Telegram Bot para Notificaciones de Pedidos de Shopify
+Envia detalles del pedido a Telegram cuando se crea un nuevo pedido
 """
 
 import os
 import json
 import hmac
 import hashlib
+import asyncio
+import requests
 from flask import Flask, request
 from telegram import Bot
 from telegram.error import TelegramError
 import logging
-import asyncio
 
-# Configure logging
+# Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Load environment variables
+# Variables de entorno
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 SHOPIFY_WEBHOOK_SECRET = os.getenv('SHOPIFY_WEBHOOK_SECRET')
+SHOPIFY_API_TOKEN = os.getenv('SHOPIFY_API_TOKEN')
+SHOPIFY_STORE = 'legit-skateshop.myshopify.com'
 
-# Validate required environment variables
+# Validar variables requeridas
 if not TELEGRAM_TOKEN:
-    logger.warning("TELEGRAM_TOKEN not set")
+    logger.warning("TELEGRAM_TOKEN no configurado")
 if not TELEGRAM_CHAT_ID:
-    logger.warning("TELEGRAM_CHAT_ID not set")
+    logger.warning("TELEGRAM_CHAT_ID no configurado")
 if not SHOPIFY_WEBHOOK_SECRET:
-    logger.warning("SHOPIFY_WEBHOOK_SECRET not set")
+    logger.warning("SHOPIFY_WEBHOOK_SECRET no configurado")
+if not SHOPIFY_API_TOKEN:
+    logger.warning("SHOPIFY_API_TOKEN no configurado - las imagenes no estaran disponibles")
 
-# Initialize Telegram bot
+# Inicializar bot de Telegram
 telegram_bot = Bot(token=TELEGRAM_TOKEN) if TELEGRAM_TOKEN else None
 
 
 def verify_shopify_webhook(request_data, signature):
     """
-    Verify that the webhook came from Shopify
-    Uses HMAC-SHA256 signature verification
+    Verificar que el webhook viene de Shopify
     """
     if not SHOPIFY_WEBHOOK_SECRET:
-        logger.warning("No webhook secret configured, skipping verification")
+        logger.warning("Sin webhook secret, saltando verificacion")
         return True
 
     hash_object = hmac.new(
@@ -56,28 +60,60 @@ def verify_shopify_webhook(request_data, signature):
     return hmac.compare_digest(expected_signature_b64, signature)
 
 
+def get_product_image(product_id):
+    """
+    Obtener la imagen del producto desde la API de Shopify
+    """
+    if not SHOPIFY_API_TOKEN or not product_id:
+        return None
+
+    try:
+        url = f"https://{SHOPIFY_STORE}/admin/api/2024-01/products/{product_id}.json"
+        headers = {
+            'X-Shopify-Access-Token': SHOPIFY_API_TOKEN,
+            'Content-Type': 'application/json'
+        }
+        response = requests.get(url, headers=headers, timeout=5)
+
+        if response.status_code == 200:
+            product = response.json().get('product', {})
+            images = product.get('images', [])
+            if images:
+                return images[0].get('src')
+    except Exception as e:
+        logger.error(f"Error obteniendo imagen del producto: {e}")
+
+    return None
+
+
 def format_order_message(order_data):
     """
-    Format Shopify order data into a readable Telegram message
+    Formatear los datos del pedido en un mensaje legible en español
     """
     order_number = order_data.get('order_number', 'N/A')
 
-    # Customer information
+    # Informacion del cliente
     customer = order_data.get('customer', {})
     customer_name = customer.get('first_name', '') + ' ' + customer.get('last_name', '')
     customer_email = customer.get('email', 'N/A')
     customer_phone = customer.get('phone', 'N/A')
 
-    # Products
+    # Productos
     line_items = order_data.get('line_items', [])
     products_text = ""
+    product_links = ""
     for item in line_items:
-        title = item.get('title', 'Unknown Product')
+        title = item.get('title', 'Producto desconocido')
         quantity = item.get('quantity', 0)
         price = float(item.get('price', 0))
-        products_text += f"  • {title} x{quantity} - ${price:.2f}\n"
+        products_text += f"  • {title} x{quantity} - ${int(price):,}\n"
 
-    # Shipping address
+        # Obtener el handle del producto para el link
+        product_handle = item.get('variant_id', '')
+        if product_handle:
+            product_links += f"  🔗 https://legit-skateshop.myshopify.com/products/{title.lower().replace(' ', '-')}\n"
+
+    # Direccion de envio
     shipping_address = order_data.get('shipping_address', {})
     address_line1 = shipping_address.get('address1', '')
     address_line2 = shipping_address.get('address2', '')
@@ -91,22 +127,24 @@ def format_order_message(order_data):
         address_text += f" {address_line2}"
     address_text += f"\n{city}, {province} {zip_code}\n{country}"
 
-    # Order total
+    # Total del pedido
     total_price = float(order_data.get('total_price', 0))
 
-    # Build the message
-    message = f"""🛹 NEW ORDER #{order_number}
+    # Construir el mensaje en espanol
+    message = f"""🛹 NUEVO PEDIDO #{order_number}
 
-👤 Customer: {customer_name.strip()}
+👤 Cliente: {customer_name.strip()}
 📧 {customer_email}
 📞 {customer_phone if customer_phone != 'None' else 'N/A'}
 
-📦 PRODUCTS:
+📦 PRODUCTOS:
 {products_text}
-📍 SHIPPING TO:
+🔗 LINKS PARA VER IMÁGENES:
+{product_links}
+📍 DIRECCION DE ENVIO:
 {address_text}
 
-💰 TOTAL: ${total_price:.2f}"""
+💰 TOTAL: ${int(total_price):,}"""
 
     return message
 
@@ -114,67 +152,77 @@ def format_order_message(order_data):
 @app.route('/webhook', methods=['POST'])
 def handle_webhook():
     """
-    Receive Shopify webhook for new orders
+    Recibir webhook de Shopify para nuevos pedidos
     """
     try:
-        # Get the request data and signature
+        # Obtener datos y firma del request
         request_data = request.get_data()
         signature = request.headers.get('X-Shopify-Hmac-SHA256', '')
 
-        # Verify the webhook signature
+        # Verificar la firma del webhook
         if not verify_shopify_webhook(request_data, signature):
-            logger.warning("Invalid webhook signature")
-            return {'status': 'error', 'message': 'Invalid signature'}, 401
+            logger.warning("Firma del webhook invalida")
+            return {'status': 'error', 'message': 'Firma invalida'}, 401
 
-        # Parse the JSON data
+        # Parsear los datos JSON
         order_data = json.loads(request_data)
 
-        # Format the message
+        # Formatear el mensaje
         message = format_order_message(order_data)
 
-        # Send to Telegram
+        # Obtener imagen del primer producto
+        line_items = order_data.get('line_items', [])
+        image_url = None
+        if line_items:
+            product_id = line_items[0].get('product_id')
+            image_url = get_product_image(product_id)
+
+        # Enviar a Telegram
         if telegram_bot and TELEGRAM_CHAT_ID:
             try:
-                asyncio.run(telegram_bot.send_message(
-                    chat_id=TELEGRAM_CHAT_ID,
-                    text=message,
-                    parse_mode='HTML'
-                    )
-                )
-                logger.info(f"Order notification sent for order #{order_data.get('order_number')}")
-                return {'status': 'success', 'message': 'Notification sent'}, 200
+                if image_url:
+                    # Enviar foto con el mensaje como caption
+                    asyncio.run(telegram_bot.send_photo(
+                        chat_id=TELEGRAM_CHAT_ID,
+                        photo=image_url,
+                        caption=message
+                    ))
+                else:
+                    # Enviar solo texto si no hay imagen
+                    asyncio.run(telegram_bot.send_message(
+                        chat_id=TELEGRAM_CHAT_ID,
+                        text=message
+                    ))
+
+                logger.info(f"Notificacion enviada para pedido #{order_data.get('order_number')}")
+                return {'status': 'success', 'message': 'Notificacion enviada'}, 200
+
             except TelegramError as e:
-                logger.error(f"Telegram error: {e}")
-                return {'status': 'error', 'message': f'Telegram error: {e}'}, 500
+                logger.error(f"Error de Telegram: {e}")
+                return {'status': 'error', 'message': f'Error de Telegram: {e}'}, 500
         else:
-            logger.error("Telegram bot not properly configured")
-            return {'status': 'error', 'message': 'Bot not configured'}, 500
+            logger.error("Bot de Telegram no configurado correctamente")
+            return {'status': 'error', 'message': 'Bot no configurado'}, 500
 
     except json.JSONDecodeError:
-        logger.error("Invalid JSON in webhook")
-        return {'status': 'error', 'message': 'Invalid JSON'}, 400
+        logger.error("JSON invalido en el webhook")
+        return {'status': 'error', 'message': 'JSON invalido'}, 400
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
+        logger.error(f"Error inesperado: {e}")
         return {'status': 'error', 'message': str(e)}, 500
 
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """
-    Health check endpoint for Render to verify the bot is running
-    """
-    return {'status': 'healthy'}, 200
+    return {'status': 'saludable'}, 200
 
 
 @app.route('/', methods=['GET'])
 def home():
-    """
-    Simple home page
-    """
     return {
-        'name': 'Skateshop Order Bot',
-        'status': 'running',
-        'version': '1.0'
+        'nombre': 'Bot de Pedidos Skateshop',
+        'estado': 'funcionando',
+        'version': '2.0'
     }, 200
 
 
