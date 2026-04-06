@@ -9,6 +9,7 @@ import hmac
 import hashlib
 import asyncio
 import requests
+import threading
 from flask import Flask, request
 from telegram import Bot
 from telegram.error import TelegramError
@@ -153,10 +154,35 @@ def format_order_message(order_data):
     return message
 
 
+def send_telegram_message(message, image_url=None):
+    """
+    Enviar mensaje a Telegram en background (no bloquea el webhook)
+    """
+    try:
+        if telegram_bot and TELEGRAM_CHAT_ID:
+            if image_url:
+                asyncio.run(telegram_bot.send_photo(
+                    chat_id=TELEGRAM_CHAT_ID,
+                    photo=image_url,
+                    caption=message
+                ))
+            else:
+                asyncio.run(telegram_bot.send_message(
+                    chat_id=TELEGRAM_CHAT_ID,
+                    text=message
+                ))
+            logger.info("Mensaje enviado a Telegram exitosamente")
+        else:
+            logger.error("Bot de Telegram no configurado correctamente")
+    except Exception as e:
+        logger.error(f"Error enviando mensaje a Telegram: {e}")
+
+
 @app.route('/webhook', methods=['POST'])
 def handle_webhook():
     """
     Recibir webhook de Shopify para nuevos pedidos
+    Responde inmediatamente a Shopify y envía el mensaje en background
     """
     try:
         # Obtener datos y firma del request
@@ -170,6 +196,7 @@ def handle_webhook():
 
         # Parsear los datos JSON
         order_data = json.loads(request_data)
+        order_number = order_data.get('order_number', 'N/A')
 
         # Formatear el mensaje
         message = format_order_message(order_data)
@@ -181,32 +208,17 @@ def handle_webhook():
             product_id = line_items[0].get('product_id')
             image_url = get_product_image(product_id)
 
-        # Enviar a Telegram
-        if telegram_bot and TELEGRAM_CHAT_ID:
-            try:
-                if image_url:
-                    # Enviar foto con el mensaje como caption
-                    asyncio.run(telegram_bot.send_photo(
-                        chat_id=TELEGRAM_CHAT_ID,
-                        photo=image_url,
-                        caption=message
-                    ))
-                else:
-                    # Enviar solo texto si no hay imagen
-                    asyncio.run(telegram_bot.send_message(
-                        chat_id=TELEGRAM_CHAT_ID,
-                        text=message
-                    ))
+        # Enviar a Telegram en un thread separado (no bloquea la respuesta)
+        thread = threading.Thread(
+            target=send_telegram_message,
+            args=(message, image_url)
+        )
+        thread.daemon = True
+        thread.start()
 
-                logger.info(f"Notificacion enviada para pedido #{order_data.get('order_number')}")
-                return {'status': 'success', 'message': 'Notificacion enviada'}, 200
-
-            except TelegramError as e:
-                logger.error(f"Error de Telegram: {e}")
-                return {'status': 'error', 'message': f'Error de Telegram: {e}'}, 500
-        else:
-            logger.error("Bot de Telegram no configurado correctamente")
-            return {'status': 'error', 'message': 'Bot no configurado'}, 500
+        logger.info(f"Pedido #{order_number} recibido y en cola para procesar")
+        # Responder INMEDIATAMENTE a Shopify (sin esperar a Telegram)
+        return {'status': 'success', 'message': 'Pedido recibido'}, 200
 
     except json.JSONDecodeError:
         logger.error("JSON invalido en el webhook")
