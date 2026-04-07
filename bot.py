@@ -10,6 +10,7 @@ import hashlib
 import asyncio
 import requests
 import threading
+import time
 from flask import Flask, request
 from telegram import Bot
 from telegram.error import TelegramError
@@ -40,6 +41,10 @@ if not SHOPIFY_API_TOKEN:
 
 # Inicializar bot de Telegram
 telegram_bot = Bot(token=TELEGRAM_TOKEN) if TELEGRAM_TOKEN else None
+
+# Guardar órdenes ya procesadas (para evitar duplicados)
+processed_orders = set()
+orders_lock = threading.Lock()  # Evita race conditions entre threads
 
 
 def verify_shopify_webhook(request_data, signature):
@@ -157,17 +162,20 @@ def format_order_message(order_data):
 def send_telegram_message(message, image_url=None):
     """
     Enviar mensaje a Telegram en background (no bloquea el webhook)
+    Crea un nuevo event loop por cada thread para evitar conflictos
     """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
         if telegram_bot and TELEGRAM_CHAT_ID:
             if image_url:
-                asyncio.run(telegram_bot.send_photo(
+                loop.run_until_complete(telegram_bot.send_photo(
                     chat_id=TELEGRAM_CHAT_ID,
                     photo=image_url,
                     caption=message
                 ))
             else:
-                asyncio.run(telegram_bot.send_message(
+                loop.run_until_complete(telegram_bot.send_message(
                     chat_id=TELEGRAM_CHAT_ID,
                     text=message
                 ))
@@ -176,6 +184,8 @@ def send_telegram_message(message, image_url=None):
             logger.error("Bot de Telegram no configurado correctamente")
     except Exception as e:
         logger.error(f"Error enviando mensaje a Telegram: {e}")
+    finally:
+        loop.close()
 
 
 @app.route('/webhook', methods=['POST'])
@@ -183,6 +193,7 @@ def handle_webhook():
     """
     Recibir webhook de Shopify para nuevos pedidos
     Responde inmediatamente a Shopify y envía el mensaje en background
+    Evita duplicados verificando si la orden ya fue procesada
     """
     try:
         # Obtener datos y firma del request
@@ -197,6 +208,13 @@ def handle_webhook():
         # Parsear los datos JSON
         order_data = json.loads(request_data)
         order_number = order_data.get('order_number', 'N/A')
+
+        # Verificar y marcar como procesada de forma atómica (evita race conditions)
+        with orders_lock:
+            if order_number in processed_orders:
+                logger.warning(f"Orden #{order_number} ya procesada, ignorando duplicado")
+                return {'status': 'success', 'message': 'Orden ya procesada'}, 200
+            processed_orders.add(order_number)
 
         # Formatear el mensaje
         message = format_order_message(order_data)
