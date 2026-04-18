@@ -167,21 +167,22 @@ def format_order_message(order_data):
 
 def send_telegram_message(message, image_url=None):
     """
-    Enviar mensaje a Telegram en background (no bloquea el webhook)
-    Crea un nuevo event loop por cada thread para evitar conflictos
+    Enviar mensaje a Telegram en background
+    Crea un Bot nuevo por cada envío para evitar problemas de event loop
     """
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        if telegram_bot and TELEGRAM_CHAT_ID:
+        if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+            bot = Bot(token=TELEGRAM_TOKEN)
             if image_url:
-                loop.run_until_complete(telegram_bot.send_photo(
+                loop.run_until_complete(bot.send_photo(
                     chat_id=TELEGRAM_CHAT_ID,
                     photo=image_url,
                     caption=message
                 ))
             else:
-                loop.run_until_complete(telegram_bot.send_message(
+                loop.run_until_complete(bot.send_message(
                     chat_id=TELEGRAM_CHAT_ID,
                     text=message
                 ))
