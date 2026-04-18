@@ -102,7 +102,13 @@ def format_order_message(order_data):
     customer = order_data.get('customer', {})
     customer_name = customer.get('first_name', '') + ' ' + customer.get('last_name', '')
     customer_email = customer.get('email', 'N/A')
-    customer_phone = customer.get('phone', 'N/A')
+    # Buscar teléfono en cliente, dirección de envío y dirección de facturación
+    customer_phone = (
+        customer.get('phone') or
+        order_data.get('shipping_address', {}).get('phone') or
+        order_data.get('billing_address', {}).get('phone') or
+        'N/A'
+    )
     customer_rut = customer.get('default_address', {}).get('company', 'N/A') if customer.get('default_address') else 'N/A'
 
     # Productos
@@ -147,7 +153,7 @@ def format_order_message(order_data):
 👤 Cliente: {customer_name.strip()}
 🆔 RUT: {customer_rut}
 📧 {customer_email}
-📞 {customer_phone if customer_phone != 'None' else 'N/A'}
+📞 {customer_phone if customer_phone and customer_phone != 'None' else 'N/A'}
 
 {alert_text}📦 PRODUCTOS:
 {products_text}
