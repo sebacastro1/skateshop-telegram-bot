@@ -1,75 +1,157 @@
-# 🛹 Bot de Telegram para Pedidos Skateshop - Guía de Configuración
+# 🛹 Bot de Telegram para Pedidos Skateshop
 
-## 📋 Resumen del Proyecto
+## 📋 ¿Qué hace este proyecto?
 
-Bot automatizado que envía notificaciones de nuevos pedidos de Shopify a Telegram. Cuando se crea una orden en tu tienda, el bot automáticamente envía un mensaje con todos los detalles (cliente, RUT, productos, dirección, total).
+Bot automatizado que envía notificaciones de nuevos pedidos de Shopify a un grupo privado de Telegram.
+Cuando un cliente hace un pedido en la tienda, el bot envía automáticamente todos los detalles al grupo donde está el bodeguero.
 
----
-
-## ✅ Qué está configurado
-
-- ✅ Bot deployado en **Render.com** (gratis)
-- ✅ Conectado a tu tienda Shopify: `legit-skateshop.myshopify.com`
-- ✅ Envía mensajes a **grupo de Telegram privado**
-- ✅ Mensajes en **ESPAÑOL**
-- ✅ Precios sin decimales (pesos chilenos)
-- ✅ Incluye SKU de productos
-- ✅ Alerta si hay múltiples unidades
-- ✅ Muestra RUT, email, teléfono del cliente
+**Tienda:** legit-skateshop.myshopify.com
 
 ---
 
-## 🔧 Variables de Entorno (en Render)
+## ✅ Estado actual (Abril 2026)
 
-Configuradas en: **Render → skateshop-telegram-bot → Environment**
-
-| Variable | Valor | Descripción |
-|----------|-------|-------------|
-| `TELEGRAM_TOKEN` | `shpat_...` | Token del bot de Telegram (de @BotFather) |
-| `TELEGRAM_CHAT_ID` | `-4996651405` | Chat ID del grupo privado |
-| `SHOPIFY_WEBHOOK_SECRET` | `9d1d9a7c2c30...` | Secret del webhook de Shopify |
-| `SHOPIFY_API_TOKEN` | (opcional) | Para obtener imágenes (no configurado actualmente) |
+- ✅ Bot corriendo 24/7 en Render.com (gratis)
+- ✅ Conectado a Shopify via webhooks
+- ✅ Enviando mensajes al grupo privado de Telegram
+- ✅ Mensajes en español con precios en CLP sin decimales
+- ✅ Incluye: cliente, RUT, email, teléfono, productos, SKU, dirección, total
 
 ---
 
-## 📂 Archivos Principales
+## 🔑 Credenciales y dónde encontrarlas
 
-**En GitHub:** `https://github.com/sebacastro1/skateshop-telegram-bot`
+> ⚠️ NUNCA subas estas credenciales a GitHub. Siempre van en Render → Environment.
 
-- **bot.py** - Código principal del bot
-- **requirements.txt** - Dependencias Python (Flask, python-telegram-bot, gunicorn, requests)
-- **render.yaml** - Configuración de Render
+| Variable | Dónde obtenerla |
+|----------|----------------|
+| `TELEGRAM_TOKEN` | Telegram → @BotFather → /mybots → tu bot → API Token |
+| `TELEGRAM_CHAT_ID` | Abrir grupo en web.telegram.org/k/ → número en la URL después del # |
+| `SHOPIFY_WEBHOOK_SECRET` | Shopify Admin → Configuración → Webhooks → abajo de la lista de webhooks |
+| `SHOPIFY_API_TOKEN` | Shopify Admin → Configuración → Apps → Desarrollar apps (opcional) |
 
----
-
-## 🚀 Cómo funciona
-
-1. **Cliente hace una orden en Shopify**
-2. **Shopify envía webhook a Render** (`https://skateshop-telegram-bot.onrender.com/webhook`)
-3. **Bot procesa los datos del pedido**
-4. **Bot envía mensaje al grupo de Telegram** con:
-   - Número de orden
-   - Cliente (nombre)
-   - RUT (del campo "empresa")
-   - Email
-   - Teléfono
-   - Productos (nombre, SKU, cantidad, precio)
-   - Dirección de envío
-   - Total
+**Valores actuales configurados en Render:**
+- `TELEGRAM_CHAT_ID`: `-4996651405` (grupo privado)
+- `SHOPIFY_WEBHOOK_SECRET`: se ve en Shopify Admin → Webhooks
 
 ---
 
-## 📝 Formato del Mensaje
+## 📂 Archivos del proyecto
 
 ```
-🛹 NUEVO PEDIDO #1234
+skateshop-telegram-bot/
+├── bot.py              → Código principal del bot
+├── requirements.txt    → Dependencias Python
+├── render.yaml         → Configuración de Render
+├── .env.example        → Plantilla de variables de entorno
+├── CONFIGURACION.md    → Esta guía
+└── README.md           → Documentación general
+```
+
+---
+
+## 🖥️ Cómo configurar en un PC nuevo (paso a paso)
+
+### Requisitos previos
+- Tener Python instalado (https://python.org)
+- Tener Git instalado (https://git-scm.com)
+- Tener una cuenta en GitHub (github.com/sebacastro1)
+- Tener una cuenta en Render (render.com)
+
+---
+
+### Paso 1: Clonar el proyecto desde GitHub
+
+Abre una terminal (CMD o PowerShell) y ejecuta:
+
+```bash
+git clone https://github.com/sebacastro1/skateshop-telegram-bot.git
+cd skateshop-telegram-bot
+```
+
+---
+
+### Paso 2: Instalar dependencias (solo para probar localmente)
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+### Paso 3: Configurar variables de entorno localmente (para pruebas)
+
+1. Copia el archivo `.env.example` y renómbralo a `.env`
+2. Abre el archivo `.env` con el Bloc de notas
+3. Rellena cada variable con sus valores reales
+
+```
+TELEGRAM_TOKEN=tu_token_aqui
+TELEGRAM_CHAT_ID=-4996651405
+SHOPIFY_WEBHOOK_SECRET=tu_secret_aqui
+```
+
+> ⚠️ El archivo `.env` NUNCA se sube a GitHub (está en .gitignore)
+
+---
+
+### Paso 4: El bot ya está en Render (no necesitas redeplegar)
+
+El bot ya corre 24/7 en:
+- **Dashboard:** https://dashboard.render.com/web/srv-d793v714tr6s73clg3sg
+- **URL del bot:** https://skateshop-telegram-bot.onrender.com
+
+Solo necesitas entrar al dashboard de Render para:
+- Ver logs
+- Actualizar variables de entorno
+- Forzar un redespliegue
+
+---
+
+### Paso 5: Si necesitas redesplegar desde cero en Render
+
+1. Ve a render.com → New → Web Service
+2. Conecta con GitHub → selecciona `skateshop-telegram-bot`
+3. Configura:
+   - **Name:** skateshop-telegram-bot
+   - **Environment:** Python
+   - **Build command:** `pip install -r requirements.txt`
+   - **Start command:** `gunicorn bot:app`
+4. Agrega las variables de entorno (ver tabla arriba)
+5. Click **Create Web Service**
+6. Espera 2-3 minutos a que despliegue
+7. Copia la nueva URL y actualiza el webhook en Shopify
+
+---
+
+### Paso 6: Actualizar webhook en Shopify (si cambia la URL de Render)
+
+1. Shopify Admin → Configuración → Webhooks
+2. Editar el webhook "Creación de pedido"
+3. Cambiar URL a: `https://[nueva-url-render].onrender.com/webhook`
+4. Guardar
+
+---
+
+## 🔄 Cómo actualizar el código
+
+1. Edita `bot.py` en tu PC
+2. Ve a GitHub → `bot.py` → lápiz ✏️ → pega el nuevo código → Commit
+3. Render detecta el cambio y redespliega automáticamente (~2 min)
+
+---
+
+## 📝 Formato del mensaje actual
+
+```
+🛹 NUEVO PEDIDO #XXXX
 
 👤 Cliente: Juan García
 🆔 RUT: 12.345.678-9
 📧 juan@email.com
 📞 +56912345678
 
-⚠️ OJO: Hay productos con múltiples unidades
+⚠️ OJO: Hay productos con múltiples unidades  ← solo si qty > 1
 
 📦 PRODUCTOS:
   • Tabla de Skate Roja (SKU: TSR-001) x2 - $45.990
@@ -77,7 +159,7 @@ Configuradas en: **Render → skateshop-telegram-bot → Environment**
   • Grip Tape Negro (SKU: GTN-002) x1 - $8.990
 
 📍 DIRECCION DE ENVIO:
-Calle Principal 123, Apt 4B
+Calle Principal 123
 Santiago, RM 8320000
 Chile
 
@@ -86,97 +168,38 @@ Chile
 
 ---
 
-## 🔗 Configuración en Shopify
+## 🐛 Solución de problemas comunes
 
-**Webhook configurado:**
-- **Evento:** Pedidos → Pedido creado
-- **URL:** `https://skateshop-telegram-bot.onrender.com/webhook`
-- **Formato:** JSON
-- **Versión de API:** 2026-04
-
-**Secret:** `9d1d9a7c2c30310f024acc3a193ef74c8e4cfc1b932be153d662197e5011e293`
-
----
-
-## 💬 Configuración en Telegram
-
-**Grupo:** "Pedidos Skateshop" (privado)
-- **Chat ID:** `-4996651405`
-- **Miembros:** Tú + tu papá + bot
-
-**Bot:** `@legit_skateshop_orders_bot` (o el nombre que hayas configurado)
+| Problema | Causa probable | Solución |
+|----------|---------------|----------|
+| No llegan mensajes | Bot dormido (free tier) | Espera 50 seg, el bot se despierta solo |
+| "Chat not found" | TELEGRAM_CHAT_ID incorrecto | Abre grupo en web.telegram.org, copia el número de la URL |
+| Llegan 3 mensajes | Race condition | Ya solucionado con threading.Lock() |
+| "Event loop closed" | Conflicto de asyncio | Ya solucionado con Bot() por instancia |
+| Webhook no llega | URL incorrecta en Shopify | Verificar que termine en /webhook |
 
 ---
 
-## 🛠️ Cómo actualizar el código
+## 🔗 URLs importantes
 
-### Si quieres cambiar algo:
-
-1. **Edita localmente:** `C:\Users\scrub\skateshop-telegram-bot\bot.py`
-2. **Sube a GitHub:**
-   - Ve a `github.com/sebacastro1/skateshop-telegram-bot`
-   - Haz clic en el archivo
-   - Haz clic en el lápiz ✏️ (editar)
-   - Pega el contenido actualizado
-   - Click "Commit changes"
-3. **Render redesplegará automáticamente** en ~2 minutos
-4. **Prueba con una orden de prueba en Shopify**
-
-### Cambios comunes que podrías hacer:
-
-- **Cambiar emoji o formato del mensaje:** Edita `format_order_message()` en bot.py
-- **Agregar más campos del cliente:** Busca en `order_data` en bot.py
-- **Cambiar precio a otro formato:** Busca `${int(price):,}` y modifica
+| Servicio | URL |
+|----------|-----|
+| Render Dashboard | https://dashboard.render.com/web/srv-d793v714tr6s73clg3sg |
+| GitHub Repo | https://github.com/sebacastro1/skateshop-telegram-bot |
+| Shopify Admin | https://legit-skateshop.myshopify.com/admin |
+| Bot Webhook URL | https://skateshop-telegram-bot.onrender.com/webhook |
+| Bot Health Check | https://skateshop-telegram-bot.onrender.com/health |
 
 ---
 
-## 🐛 Troubleshooting
+## 💡 Mejoras futuras posibles
 
-**Problema:** El bot no envía mensajes
-- ✓ Verifica que el bot esté agregado al grupo
-- ✓ Verifica que `TELEGRAM_CHAT_ID` sea correcto (`-4996651405`)
-- ✓ Revisa los logs en Render (Logs → busca errores)
-
-**Problema:** Webhook no se dispara
-- ✓ Verifica que el webhook esté activo en Shopify (Configuración → Webhooks)
-- ✓ Verifica que la URL sea exacta: `https://skateshop-telegram-bot.onrender.com/webhook`
-- ✓ Verifica que el secret sea correcto
-
-**Problema:** Error "Chat not found" en Render
-- ✓ El Chat ID está incorrecto
-- ✓ Obtén el correcto abriendo el grupo en: `https://web.telegram.org/k/`
-- ✓ El número después de `#` es tu Chat ID
+- Imágenes de productos en el mensaje (requiere SHOPIFY_API_TOKEN)
+- Persistir órdenes procesadas en archivo/base de datos (por si se reinicia Render)
+- Confirmación de despacho desde Telegram
+- Dashboard web para ver historial de pedidos
 
 ---
 
-## 📊 URLs Importantes
-
-- **Render Dashboard:** `https://dashboard.render.com/web/srv-d793v714tr6s73clg3sg`
-- **GitHub Repo:** `https://github.com/sebacastro1/skateshop-telegram-bot`
-- **Shopify Admin:** `https://legit-skateshop.myshopify.com/admin`
-- **Bot URL (webhook):** `https://skateshop-telegram-bot.onrender.com/webhook`
-
----
-
-## 💡 Posibles mejoras futuras
-
-- Agregar imágenes de productos en el mensaje
-- Crear un dashboard web para ver pedidos
-- Agregar filtros o búsqueda de pedidos
-- Guardar historial de pedidos en base de datos
-- Agregar más información del cliente (dirección adicional, etc.)
-
----
-
-## 📞 Notas rápidas
-
-- El bot se ejecuta 24/7 en Render (plan gratuito)
-- No hay costo mensual (todo es gratis)
-- Los mensajes llegan en tiempo real
-- El grupo puede tener múltiples personas
-- Puedes agregar más miembros al grupo cuando quieras
-
----
-
-**Última actualización:** 6 de abril de 2026
-**Estado:** ✅ Funcionando correctamente
+**Última actualización:** Abril 2026
+**Estado:** ✅ Funcionando en producción
