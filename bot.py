@@ -100,7 +100,7 @@ def format_order_message(order_data):
 
     # Informacion del cliente
     customer = order_data.get('customer', {})
-    customer_name = customer.get('first_name', '') + ' ' + customer.get('last_name', '')
+    customer_name = (customer.get('first_name') or '') + ' ' + (customer.get('last_name') or '')
     customer_email = customer.get('email', 'N/A')
     # Buscar teléfono en cliente, dirección de envío y dirección de facturación
     customer_phone = (
@@ -132,12 +132,12 @@ def format_order_message(order_data):
 
     # Direccion de envio
     shipping_address = order_data.get('shipping_address', {})
-    address_line1 = shipping_address.get('address1', '')
-    address_line2 = shipping_address.get('address2', '')
-    city = shipping_address.get('city', '')
-    province = shipping_address.get('province', '')
-    zip_code = shipping_address.get('zip', '')
-    country = shipping_address.get('country', '')
+    address_line1 = shipping_address.get('address1') or ''
+    address_line2 = shipping_address.get('address2') or ''
+    city = shipping_address.get('city') or ''
+    province = shipping_address.get('province') or ''
+    zip_code = shipping_address.get('zip') or ''
+    country = shipping_address.get('country') or ''
 
     address_text = f"{address_line1}"
     if address_line2:
